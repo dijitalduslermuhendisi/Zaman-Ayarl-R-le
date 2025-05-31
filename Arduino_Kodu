@@ -1,0 +1,78 @@
+#include <ThreeWire.h>
+#include <RtcDS1302.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define ROLE_PIN 2
+#define DS1302_CLK_PIN 6
+#define DS1302_DAT_PIN 7
+#define DS1302_RST_PIN 8
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+ThreeWire myWire(DS1302_DAT_PIN, DS1302_CLK_PIN, DS1302_RST_PIN);
+RtcDS1302<ThreeWire> rtc(myWire);
+
+int basSaat = 22, basDakika = 25, basSaniye = 0;
+int bitSaat = 22, bitDakika = 24, bitSaniye = 15;
+bool aktifGunler[7] = {true, true, true, true, true, false, false};
+
+void ekranYaz(String satir1, String satir2) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(satir1);
+  lcd.setCursor(0, 1);
+  lcd.print(satir2);
+}
+
+int saniyeHesapla(int saat, int dakika, int saniye) {
+  return saat * 3600 + dakika * 60 + saniye;
+}
+
+void setup() {
+  pinMode(ROLE_PIN, OUTPUT);
+  digitalWrite(ROLE_PIN, LOW);
+
+  lcd.init();
+  lcd.backlight();
+
+  rtc.Begin();
+  if (!rtc.IsDateTimeValid()) rtc.SetDateTime(RtcDateTime(__DATE__, __TIME__));
+  if (rtc.GetIsWriteProtected()) rtc.SetIsWriteProtected(false);
+  if (!rtc.GetIsRunning()) rtc.SetIsRunning(true);
+}
+
+void loop() {
+  RtcDateTime now = rtc.GetDateTime();
+  int gunIndex = (now.DayOfWeek() + 6) % 7;
+  bool gunAktif = aktifGunler[gunIndex];
+
+  int suankiSaniye = saniyeHesapla(now.Hour(), now.Minute(), now.Second());
+  int baslamaSaniye = saniyeHesapla(basSaat, basDakika, basSaniye);
+  int bitisSaniye = saniyeHesapla(bitSaat, bitDakika, bitSaniye);
+
+  bool sureAraligi = (suankiSaniye >= baslamaSaniye) && (suankiSaniye < bitisSaniye);
+
+  char saatStr[17], tarihStr[17];
+  snprintf(saatStr, sizeof(saatStr), "%02u:%02u:%02u", now.Hour(), now.Minute(), now.Second());
+  snprintf(tarihStr, sizeof(tarihStr), "%02u/%02u/%04u", now.Day(), now.Month(), now.Year());
+
+  if (gunAktif) {
+    if (sureAraligi) {
+      digitalWrite(ROLE_PIN, HIGH);
+      int kalan = bitisSaniye - suankiSaniye;
+      int kalanDakika = kalan / 60;
+      ekranYaz(saatStr, "Kap: " + String(kalanDakika) + "dk");
+    } else {
+      digitalWrite(ROLE_PIN, LOW);
+      int kalan = baslamaSaniye - suankiSaniye;
+      if (kalan < 0) kalan += 86400;
+      int kalanDakika = kalan / 60;
+      ekranYaz(saatStr, "Basla: " + String(kalanDakika) + "dk");
+    }
+  } else {
+    digitalWrite(ROLE_PIN, LOW);
+    ekranYaz(saatStr, "Bugun pasif");
+  }
+
+  delay(1000);
+}
