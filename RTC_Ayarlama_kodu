@@ -1,0 +1,66 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <ThreeWire.h>
+#include <RtcDS1302.h>
+
+
+#define RTC_CLK_PIN 6
+#define RTC_DAT_PIN 7
+#define RTC_RST_PIN 8
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+ThreeWire myWire(RTC_DAT_PIN, RTC_CLK_PIN, RTC_RST_PIN); 
+RtcDS1302<ThreeWire> Rtc(myWire);
+
+void setup() {
+  Serial.begin(9600);
+  
+  
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("RTC Basliyor...");
+  
+
+  Rtc.Begin();
+  
+  
+  RtcDateTime currentTime = RtcDateTime(2025, 5, 24, 16, 30, 10); 
+  Rtc.SetDateTime(currentTime);
+  
+  if (Rtc.GetIsWriteProtected()) {
+    Rtc.SetIsWriteProtected(false);
+  }
+  
+  if (!Rtc.GetIsRunning()) {
+    Rtc.SetIsRunning(true);
+  }
+  
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  RtcDateTime now = Rtc.GetDateTime();
+  
+  
+  char timeStr[9];
+  sprintf(timeStr, "%02u:%02u:%02u", now.Hour(), now.Minute(), now.Second());
+  
+  char dateStr[11];
+  sprintf(dateStr, "%02u/%02u/%04u", now.Day(), now.Month(), now.Year());
+  
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Saat: ");
+  lcd.print(timeStr);
+  
+  lcd.setCursor(0, 1);
+  lcd.print("Tarih:");
+  lcd.print(dateStr);
+  
+  delay(1000);
+}
